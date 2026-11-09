@@ -153,9 +153,9 @@ body {
   margin-bottom: 6px;
 }
 
-.badge-level-0 { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+.badge-level-0 { background: #d1fae5; color: #047857; border: 1px solid #6ee7b7; }
 .badge-level-1 { background: #e0f2fe; color: #0284c7; border: 1px solid #7dd3fc; }
-.badge-level-2 { background: #ffedd5; color: #c2410c; border: 1px solid #fdba74; }
+.badge-level-2 { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
 .badge-level-3 { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; animation: pulse 1s infinite alternate; }
 
 @keyframes pulse {

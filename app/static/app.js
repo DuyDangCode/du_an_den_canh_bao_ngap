@@ -289,13 +289,14 @@ const presets = {
 // ================= THREE.JS SETUP =================
 let scene, camera, renderer, controls;
 let houseMesh, waterMesh;
-let lampGroup, lampLedMesh, lampFloorSpot, torchHeadMesh;
+let lampGroup, lampLedMesh, lampGlowRing, lampColorLight, lampFloorSpot, torchHeadMesh;
 
+// Bảng 4 màu tương phản cao, tách biệt rõ ràng giữa các cấp độ
 const colors = {
-  level0: 0xd97706, // Vàng ấm / Hổ phách
-  level1: 0x0284c7, // Xanh dương dịu gợn sóng
-  level2: 0xea580c, // Cam chuẩn bị
-  level3: 0xdc2626  // Đỏ khẩn cấp
+  level0: 0x10b981, // Cấp 0 (Bình thường): Xanh lá ngọc an toàn
+  level1: 0x0ea5e9, // Cấp 1 (Dự báo sớm): Xanh dương sáng
+  level2: 0xf59e0b, // Cấp 2 (Chuẩn bị): Vàng cam tươi
+  level3: 0xff0033  // Cấp 3 (Khẩn cấp): Đỏ tươi rực rỡ
 };
 
 function init3D() {
@@ -438,31 +439,46 @@ function buildSmartLamp() {
   lampGroup = new THREE.Group();
   lampGroup.position.set(-10, 0, 2); // Đặt ngay giữa không gian phòng khách chính (trên mặt sàn y = 0)
 
+  // Vòng hào quang phát sáng dưới chân đèn để nhìn rõ màu từ xa
+  const ringGeo = new THREE.RingGeometry(1.9, 4.2, 32);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: colors.level0,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.45
+  });
+  lampGlowRing = new THREE.Mesh(ringGeo, ringMat);
+  lampGlowRing.rotation.x = -Math.PI / 2;
+  lampGlowRing.position.y = 0.08;
+  lampGroup.add(lampGlowRing);
+
   // Đế đèn gỗ cao cấp
-  const baseGeo = new THREE.CylinderGeometry(1.6, 1.8, 0.5, 24);
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x3d2716, roughness: 0.6 });
+  const baseGeo = new THREE.CylinderGeometry(1.8, 2.0, 0.5, 24);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
   const base = new THREE.Mesh(baseGeo, baseMat);
   base.position.y = 0.25;
   base.castShadow = true;
   lampGroup.add(base);
 
-  // Thân đèn nhôm mờ & kính tán sáng (cao 8.5 đơn vị 3D, cân đối với tường cao 14 đơn vị)
-  const lampHeight3D = 8.5;
-  const bodyGeo = new THREE.CylinderGeometry(0.6, 0.6, lampHeight3D, 24);
-  const bodyMat = new THREE.MeshPhysicalMaterial({
+  // Thân đèn LED màu sắc nét, không bị pha nhạt bởi nền phòng
+  const lampHeight3D = 9.0;
+  const bodyGeo = new THREE.CylinderGeometry(0.85, 0.85, lampHeight3D, 28);
+  const bodyMat = new THREE.MeshStandardMaterial({
     color: colors.level0,
     emissive: colors.level0,
-    emissiveIntensity: 0.85,
-    roughness: 0.2,
-    transmission: 0.6,
-    thickness: 1.0,
-    transparent: true,
-    opacity: 0.95
+    emissiveIntensity: 1.35,
+    roughness: 0.15,
+    metalness: 0.05
   });
   lampLedMesh = new THREE.Mesh(bodyGeo, bodyMat);
   lampLedMesh.position.y = 0.5 + lampHeight3D / 2;
   lampLedMesh.castShadow = true;
   lampGroup.add(lampLedMesh);
+
+  // Nguồn sáng tỏa màu xung quanh thân đèn
+  lampColorLight = new THREE.PointLight(colors.level0, 2.5, 28, 1.5);
+  lampColorLight.position.set(0, 5.0, 0);
+  lampGroup.add(lampColorLight);
 
   // Đèn trắng rọi sàn (Floor Downlight)
   lampFloorSpot = new THREE.SpotLight(0xffffff, 0, 22, Math.PI / 2.5, 0.5, 1);
@@ -472,8 +488,8 @@ function buildSmartLamp() {
   lampGroup.add(lampFloorSpot.target);
 
   // Đầu đèn tháo rời bằng nam châm (Torch head)
-  const torchGeo = new THREE.CylinderGeometry(0.75, 0.65, 1.2, 24);
-  const torchMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.8, roughness: 0.3 });
+  const torchGeo = new THREE.CylinderGeometry(0.95, 0.85, 1.2, 24);
+  const torchMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 });
   torchHeadMesh = new THREE.Mesh(torchGeo, torchMat);
   torchHeadMesh.position.y = 0.5 + lampHeight3D + 0.6;
   torchHeadMesh.castShadow = true;
@@ -510,20 +526,22 @@ function update3DLampAndWater(prediction) {
 
   lampLedMesh.material.color.setHex(targetColor);
   lampLedMesh.material.emissive.setHex(targetColor);
+  if (lampGlowRing) lampGlowRing.material.color.setHex(targetColor);
+  if (lampColorLight) lampColorLight.color.setHex(targetColor);
 
   // Đèn rọi sàn chỉ bật khi Khẩn cấp (Cấp 3) và không phải báo giả
   if (level === 3 && !prediction.is_false_alarm) {
-    lampFloorSpot.intensity = 3.5;
+    lampFloorSpot.intensity = 4.5;
   } else {
     lampFloorSpot.intensity = 0.0;
   }
 
   // Đầu đèn tháo rời (Torch)
   if (appState.features.torch_detached) {
-    torchHeadMesh.position.y = 0.5 + 8.5 + 3.0; // Nhấc bay lên khỏi thân đèn
+    torchHeadMesh.position.y = 0.5 + 9.0 + 3.0; // Nhấc bay lên khỏi thân đèn
     torchHeadMesh.rotation.z = Math.PI / 6;
   } else {
-    torchHeadMesh.position.y = 0.5 + 8.5 + 0.6;
+    torchHeadMesh.position.y = 0.5 + 9.0 + 0.6;
     torchHeadMesh.rotation.z = 0;
   }
 
@@ -549,13 +567,15 @@ function animate() {
   requestAnimationFrame(animate);
   controls.update();
 
-  // Hiệu ứng chớp đỏ khi Cấp 3
+  // Hiệu ứng chớp đỏ rõ nét khi Cấp 3
   if (appState.prediction.level === 3 && lampLedMesh && !appState.prediction.is_false_alarm) {
-    const time = Date.now() * 0.006;
+    const time = Date.now() * 0.008;
     const pulse = (Math.sin(time) + 1) * 0.5;
-    lampLedMesh.material.emissiveIntensity = 0.4 + pulse * 1.2;
+    lampLedMesh.material.emissiveIntensity = 0.7 + pulse * 1.6;
+    if (lampGlowRing) lampGlowRing.material.opacity = 0.25 + pulse * 0.55;
   } else if (lampLedMesh) {
-    lampLedMesh.material.emissiveIntensity = 0.8;
+    lampLedMesh.material.emissiveIntensity = 1.35;
+    if (lampGlowRing) lampGlowRing.material.opacity = 0.45;
   }
 
   renderer.render(scene, camera);
@@ -695,10 +715,10 @@ function updateUI() {
 
   document.getElementById('display-depth-val').innerText = `${p.display_depth_cm.toFixed(1)} cm`;
   document.getElementById('display-depth-desc').innerText =
-    p.level === 0 ? "Mặt sàn khô ráo • Đèn trang trí vàng ấm" :
-    p.level === 1 ? "Mưa lớn & Triều cường dâng • Cảnh báo sớm 60p" :
-    p.level === 2 ? `Cống dâng nhanh • Đèn dâng cột sáng ${p.display_depth_cm.toFixed(1)}cm (${p.ruler_pct}%)` :
-    "NƯỚC TRÀN SÀN NHÀ • Đèn chớp đỏ & Bật đèn rọi sàn";
+    p.level === 0 ? "Mặt sàn khô ráo • Đèn xanh lá an toàn" :
+    p.level === 1 ? "Mưa lớn & Triều cường dâng • Đèn xanh dương (Cảnh báo sớm 60p)" :
+    p.level === 2 ? `Cống dâng nhanh • Đèn vàng cam ${p.display_depth_cm.toFixed(1)}cm (${p.ruler_pct}%)` :
+    "NƯỚC TRÀN SÀN NHÀ • Đèn chớp đỏ tươi & Bật đèn rọi sàn";
 
   // Cảnh báo giả lập lau nhà
   const falseBox = document.getElementById('false-alarm-box');
@@ -738,7 +758,7 @@ function updateUI() {
 
   // Header icon mini
   const hdrLamp = document.getElementById('header-lamp-indicator');
-  const hex = p.level === 0 ? "#d97706" : (p.level === 1 ? "#0284c7" : (p.level === 2 ? "#ea580c" : "#dc2626"));
+  const hex = p.level === 0 ? "#10b981" : (p.level === 1 ? "#0ea5e9" : (p.level === 2 ? "#f59e0b" : "#ff0033"));
   hdrLamp.style.background = `linear-gradient(to top, ${hex}, transparent)`;
   hdrLamp.style.borderColor = hex;
 
