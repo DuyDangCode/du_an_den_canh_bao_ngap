@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đèn Nội Thất Cảnh Báo Ngập Lụt Đô Thị (Mô Phỏng 3D & Online ML)</title>
+  <link rel="stylesheet" href="style.css?v=3">
+  <!-- Thư viện Three.js và STLLoader qua CDN ES Modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="logo-area">
+      <div class="lamp-icon-mini" id="header-lamp-indicator"></div>
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="app-title">Đèn Nội Thất Thông Minh Cảnh Báo Ngập</span>
+          <span id="mode-badge" class="mode-badge">Đang kết nối...</span>
+        </div>
+        <div class="app-subtitle">Mô Phỏng 3D Nhà Phố & Bộ Não Machine Learning Học Thích Nghi</div>
+      </div>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="demo-page">Trang 1: Demo 3D & Cảm Biến Giả Lập</button>
+      <button class="nav-tab" data-tab="results-page">Trang 2: Kết Quả ML & Dạy AI Học</button>
+    </nav>
+  </header>
+
+  <!-- TRANG 1: DEMO MÔ PHỎNG 3D -->
+  <main id="demo-page" class="tab-content active">
+    <!-- Viewport 3D -->
+    <div class="viewport-container">
+      <div id="canvas-container"></div>
+
+      <!-- Overlay trạng thái đèn & mức ngập -->
+      <div class="overlay-status">
+        <div id="status-badge" class="status-badge badge-level-0">Cấp 0: Ngày Bình Thường</div>
+        <div class="water-depth-display" id="display-depth-val">0.0 cm</div>
+        <div class="water-depth-sub" id="display-depth-desc">Mặt sàn khô ráo • Đèn trang trí vàng ấm</div>
+        <div id="false-alarm-box" class="false-alarm-banner">
+          ⚠️ <strong>Lọc Báo Giả:</strong> <span id="false-alarm-text">Đang lau nhà hoặc đổ ly nước</span>
+        </div>
+      </div>
+
+      <!-- Loa Visual-Only (Sóng âm + Lời nhắc + Mute) -->
+      <div class="speaker-overlay">
+        <div class="audio-waveform" id="speaker-waveform">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+        <div style="font-size: 12px;">
+          <div style="font-weight: 700; color: var(--text-main);" id="speaker-title">Loa Cảnh Báo: Im lặng</div>
+          <div style="font-size: 11px; color: var(--text-muted);" id="speaker-msg">Chế độ trang trí nội thất</div>
+        </div>
+        <button class="mute-btn" id="btn-mute">Tắt còi (Mute)</button>
+      </div>
+
+      <!-- Phím tắt điều khiển camera 3D -->
+      <div class="view-hints">
+        🖱️ Chuột trái: Xoay 360° | Chuột phải: Di chuyển | Cuộn: Thu/Phóng
+      </div>
+    </div>
+
+    <!-- Bảng điều khiển giả lập bên phải -->
+    <div class="controls-container">
+      <!-- 5 Kịch bản mẫu 1-Click -->
+      <div class="panel-section">
+        <div class="section-title">Kịch Bản Mẫu Chấm Thi (1-Click)</div>
+        <div class="presets-grid">
+          <button class="btn-preset active" data-preset="normal">1. Ngày thường</button>
+          <button class="btn-preset" data-preset="early">2. Dự báo sớm (-60p)</button>
+          <button class="btn-preset" data-preset="prep">3. Cống dâng (-20p)</button>
+          <button class="btn-preset" data-preset="flood">4. Ngập khẩn cấp</button>
+          <button class="btn-preset" data-preset="mop" style="grid-column: span 2;">5. Lau nhà / Đổ nước (Test Lọc 30s)</button>
+        </div>
+      </div>
+
+      <!-- Nhóm 1: Điều kiện Thời tiết -->
+      <div class="panel-section">
+        <div class="section-title">Thời Tiết & Triều Cường (API Ngoại Vi)</div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Lượng mưa dự báo / thực tế</span>
+            <span class="control-value" id="val-rainfall">5 mm/h</span>
+          </div>
+          <input type="range" id="input-rainfall" min="0" max="150" value="5">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Mực triều cường</span>
+            <span class="control-value" id="val-tide">110 cm</span>
+          </div>
+          <input type="range" id="input-tide" min="80" max="190" value="110">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Độ ẩm không khí</span>
+            <span class="control-value" id="val-humidity">65 %</span>
+          </div>
+          <input type="range" id="input-humidity" min="40" max="100" value="65">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Áp suất khí quyển</span>
+            <span class="control-value" id="val-pressure">1012 hPa</span>
+          </div>
+          <input type="range" id="input-pressure" min="980" max="1025" value="1012">
+        </div>
+      </div>
+
+      <!-- Nhóm 2: Cảm biến Tàng hình -->
+      <div class="panel-section">
+        <div class="section-title">Mạng Cảm Biến Tàng Hình (Hố Ga & Sàn)</div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Mực nước cống / hố ga</span>
+            <span class="control-value" id="val-drain-level">15 %</span>
+          </div>
+          <input type="range" id="input-drain-level" min="0" max="100" value="15">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Tốc độ nước cống dâng</span>
+            <span class="control-value" id="val-drain-speed">0.2 cm/phút</span>
+          </div>
+          <input type="range" id="input-drain-speed" min="0" max="8" step="0.1" value="0.2">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Mực nước chạm sàn nhà</span>
+            <span class="control-value" id="val-floor-water">0.0 cm</span>
+          </div>
+          <input type="range" id="input-floor-water" min="0" max="30" step="0.5" value="0">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Thời gian nước đọng trên sàn</span>
+            <span class="control-value" id="val-floor-dur">0 giây</span>
+          </div>
+          <input type="range" id="input-floor-dur" min="0" max="60" value="0">
+        </div>
+      </div>
+
+      <!-- Nhóm 3: Trạng thái Nguồn điện & Thiết bị -->
+      <div class="panel-section">
+        <div class="section-title">An Toàn Điện & Trạng Thái Thiết Bị</div>
+        <div class="toggle-row">
+          <span>Cắt điện lưới (Chạy Pin dự phòng 8–12h)</span>
+          <label class="switch">
+            <input type="checkbox" id="toggle-power-cut">
+            <span class="slider-switch"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <span>Mất Wi-Fi (Chế độ Hoạt động Độc lập)</span>
+          <label class="switch">
+            <input type="checkbox" id="toggle-offline">
+            <span class="slider-switch"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <span>Tháo rời đầu đèn nam châm (Đèn pin cầm tay)</span>
+          <label class="switch">
+            <input type="checkbox" id="toggle-torch">
+            <span class="slider-switch"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- TRANG 2: KẾT QUẢ ML, DẠY AI & TINH CHỈNH NGƯỠNG -->
+  <main id="results-page" class="tab-content">
+    <div class="results-column">
+      <!-- Thẻ thông số dự báo -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Cấp độ nguy hiểm</div>
+          <div class="metric-number" id="ml-level-card">Cấp 0</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;" id="ml-level-desc">Bình thường</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Xác suất xảy ra ngập</div>
+          <div class="metric-number" id="ml-prob-card">0.0 %</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Dự báo trước 30-60 phút</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Mực nước ngập dự kiến</div>
+          <div class="metric-number" id="ml-depth-card">0.0 cm</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;" id="ml-ruler-card">Cột sáng đèn: 0%</div>
+        </div>
+      </div>
+
+      <!-- Trọng số đóng góp của từng yếu tố -->
+      <div class="panel-section">
+        <div class="section-title">Phân Tích Đóng Góp Yếu Tố Ngập (Explainable ML)</div>
+        <div class="contrib-item">
+          <div class="control-label-row">
+            <span>Tác động từ Mưa lớn</span>
+            <span id="contrib-rain">+0.0 cm</span>
+          </div>
+          <div class="contrib-bar-wrap"><div class="contrib-bar" id="bar-rain" style="width: 5%;"></div></div>
+        </div>
+        <div class="contrib-item">
+          <div class="control-label-row">
+            <span>Tác động từ Triều cường dâng cao</span>
+            <span id="contrib-tide">+0.0 cm</span>
+          </div>
+          <div class="contrib-bar-wrap"><div class="contrib-bar" id="bar-tide" style="width: 5%;"></div></div>
+        </div>
+        <div class="contrib-item">
+          <div class="control-label-row">
+            <span>Tác động từ Mực nước & Tốc độ dâng hố ga</span>
+            <span id="contrib-drain">+0.0 cm</span>
+          </div>
+          <div class="contrib-bar-wrap"><div class="contrib-bar" id="bar-drain" style="width: 5%;"></div></div>
+        </div>
+        <div class="contrib-item">
+          <div class="control-label-row">
+            <span>Hiệu ứng Giảm ngập nhờ Cốt nền nhà cao</span>
+            <span id="contrib-elev" style="color: #4ade80;">-0.0 cm</span>
+          </div>
+          <div class="contrib-bar-wrap"><div class="contrib-bar" id="bar-elev" style="width: 20%; background-color: #4ade80;"></div></div>
+        </div>
+      </div>
+
+      <!-- Khu vực "Dạy AI Học Thích Nghi" (Online Learning Feedback) -->
+      <div class="learn-box">
+        <div class="section-title" style="color: #60a5fa; margin-bottom: 6px;">
+          🧠 Dạy AI Học Thích Nghi Theo Ngôi Nhà Của Bạn (Online Learning)
+        </div>
+        <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5;">
+          Mỗi ngôi nhà có độ cao cốt nền và khả năng thoát nước khác nhau. Sau mỗi cơn mưa, hãy nhập <strong>mực nước ngập thực tế đo được tại sàn</strong>. Mô hình sẽ lập tức cập nhật trọng số để những lần mưa sau dự báo chuẩn xác hơn!
+        </div>
+        <div class="learn-input-row">
+          <input type="number" id="input-actual-depth" class="learn-input" placeholder="Mực nước ngập thực tế (cm)..." min="0" max="60" step="0.5">
+          <button id="btn-train-online" class="btn-learn">Cập Nhật Thực Tế (Dạy AI Học)</button>
+          <button id="btn-reset-ml" class="btn-reset-ml" title="Đặt lại trọng số mô hình về mặc định ban đầu">Đặt Lại</button>
+        </div>
+        <div id="learn-feedback-msg" style="font-size: 12px; margin-top: 10px; color: #93c5fd; display: none;"></div>
+      </div>
+
+      <!-- Danh sách việc cần làm khẩn cấp -->
+      <div class="panel-section">
+        <div class="section-title">Danh Sách Việc Cần Làm Khẩn Cấp (Emergency Checklist)</div>
+        <div class="checklist-item">
+          <input type="checkbox" id="chk-1">
+          <label for="chk-1">Lắp ván/tấm chắn nước tại cửa chính và cửa ngách</label>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" id="chk-2">
+          <label for="chk-2">Rút phích cắm tủ lạnh, máy giặt và các ổ điện sát mặt sàn</label>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" id="chk-3">
+          <label for="chk-3">Dắt xe máy lên gác lửng / kê cao đồ nội thất bằng gỗ</label>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" id="chk-4">
+          <label for="chk-4">Kiểm tra đầu đèn tháo rời (chuẩn bị pin sạc dự phòng cứu hộ)</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cột cấu hình ngưỡng bên phải -->
+    <div class="settings-column">
+      <div class="panel-section">
+        <div class="section-title">Đặc Điểm Ngôi Nhà & Kích Thước Đèn</div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Độ cao cốt nền nhà (so với nắp cống)</span>
+            <span class="control-value" id="val-th-elev">20 cm</span>
+          </div>
+          <input type="range" id="th-house-elevation" min="0" max="60" value="20">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Chiều cao thân đèn nội thất</span>
+            <span class="control-value" id="val-th-lamp">80 cm</span>
+          </div>
+          <input type="range" id="th-lamp-height" min="60" max="100" value="80">
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Ngưỡng Kích Hoạt 4 Cấp Độ Cảnh Báo</div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Ngưỡng mưa Cấp 1 (Dự báo sớm)</span>
+            <span class="control-value" id="val-th-rain">40 mm/h</span>
+          </div>
+          <input type="range" id="th-c1-rain" min="20" max="80" value="40">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Ngưỡng triều cường Cấp 1</span>
+            <span class="control-value" id="val-th-tide">140 cm</span>
+          </div>
+          <input type="range" id="th-c1-tide" min="110" max="170" value="140">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Ngưỡng nước cống Cấp 2 (Chuẩn bị)</span>
+            <span class="control-value" id="val-th-drain">70 %</span>
+          </div>
+          <input type="range" id="th-c2-drain" min="40" max="95" value="70">
+        </div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Ngưỡng nước sàn Cấp 3 (Khẩn cấp)</span>
+            <span class="control-value" id="val-th-floor">1.0 cm</span>
+          </div>
+          <input type="range" id="th-c3-floor" min="0.5" max="5.0" step="0.5" value="1.0">
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Bộ Lọc Chống Báo Động Giả (Lau Nhà)</div>
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Thời gian đọng nước liên tục tối thiểu</span>
+            <span class="control-value" id="val-th-filter">30 giây</span>
+          </div>
+          <input type="range" id="th-anti-false-time" min="10" max="60" value="30">
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.4;">
+          💡 <em>Hệ thống chỉ kích hoạt còi đỏ Cấp 3 khi phát hiện nước đọng trên sàn vượt quá ngưỡng này ĐỒNG THỜI dưới cống đang đầy hoặc trời mưa.</em>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Script ứng dụng Three.js + kết nối API Python -->
+  <script type="module" src="app.js?v=4"></script>
+</body>
+</html>

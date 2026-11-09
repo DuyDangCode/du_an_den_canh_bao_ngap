@@ -1,0 +1,24 @@
+{
+  "weights": {
+    "bias": -5.04,
+    "rainfall": 0.218,
+    "tide": 0.16,
+    "drain_level": 0.09,
+    "drain_speed": 1.195,
+    "humidity": 0.05,
+    "pressure": -0.15,
+    "house_elevation": -0.834
+  },
+  "training_episodes": 1,
+  "history": [
+    {
+      "episode": 1,
+      "actual_cm": 14.0,
+      "pred_before_cm": 18.0,
+      "pred_after_cm": 12.5,
+      "error_before": 4.0,
+      "error_after": 1.5,
+      "reward": 6.0
+    }
+  ]
+}
